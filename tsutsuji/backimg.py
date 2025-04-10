@@ -1,5 +1,5 @@
 #
-#    Copyright 2021-2024 konawasabi
+#    Copyright 2021-2022 konawasabi
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import requests
 
 from kobushi import dialog_multifields
 from . import math
-from ._version import __version__
 
 import configparser
 
@@ -81,7 +80,7 @@ class BackImgControl():
         self.master = None
     def create_window(self):
         if self.master == None:
-            self.master = tk.Toplevel(self.mainwindow.master)
+            self.master = tk.Toplevel(self.mainwindow)
             self.mainframe = ttk.Frame(self.master, padding='3 3 3 3')
             self.mainframe.columnconfigure(0, weight=1)
             self.mainframe.rowconfigure(0, weight=1)
@@ -258,8 +257,6 @@ class BackImgControl():
     def load_setting(self,path=None):
         if path is None:
             path = filedialog.askopenfilename()
-            for key in self.imglist_sb.get_children():
-                self.imglist_sb.delete(key)
         conf = configparser.ConfigParser()
         conf.read(path)
         self.conf_path = path
@@ -277,10 +274,6 @@ class BackImgControl():
             self.imgs[sections].rotrad = float(conf[sections]['rot'])
             self.imgs[sections].alpha = float(conf[sections]['alpha'])
             self.imgs[sections].scale = float(conf[sections]['scale'])
-
-            if path is None:
-                self.imglist_sb.insert('',tk.END, sections, text=sections)
-                self.imglist_sb.selection_set(sections)
         self.mainwindow.drawall()
     def sendtopmost(self,event=None):
         self.master.lift()
@@ -423,7 +416,10 @@ class TileMapControl():
            '{y}' not in self.template_url:
             raise Exception('Invalid template_url')
         else:
-            url_base = self.template_url.replace('{z}', '{:d}').replace('{x}', '{:d}').replace('{y}', '{:d}')
+            if 'google' in self.template_url:
+                url_base = self.template_url.replace('{x}', '{:d}').replace('{y}', '{:d}').replace('{z}', '{:d}')
+            else:
+                url_base = self.template_url.replace('{z}', '{:d}').replace('{x}', '{:d}').replace('{y}', '{:d}')
 
         width = scalex
         height = scalex*as_ratio
@@ -506,8 +502,11 @@ class TileMapControl():
         imgnum = 0
         for i in range(0,x_num):
             for j in range(0,y_num):
-                url_toget = url_base.format(zoom,x_min+i,y_min+j)
+                if 'google' in self.template_url:
+                    url_toget = url_base.format(x_min+i,y_min+j,zoom)
 
+                else:
+                    url_toget = url_base.format(zoom,x_min+i,y_min+j)
                 if url_toget not in self.img_cache.keys():
                     imgnum +=1
 
@@ -517,24 +516,25 @@ class TileMapControl():
                 return
         
         self.img = None
-        result = Image.new('RGBA', (256*x_num, 256*y_num), (0,0,0))
+        result = Image.new('RGB', (256*x_num, 256*y_num), (0,0,0))
 
         counts = 0
         for i in range(0,x_num):
             for j in range(0,y_num):
-                url_toget = url_base.format(zoom,x_min+i,y_min+j)
+                if 'google' in self.template_url:
+                    url_toget = url_base.format(x_min+i,y_min+j,zoom)
+                else:
+                    url_toget = url_base.format(zoom,x_min+i,y_min+j)
 
                 try:
                     if url_toget not in self.img_cache.keys():
-                        self.img_cache[url_toget] = Image.open(io.BytesIO(requests.get(url_toget,\
-                                                                                       headers={'user-agent':'tsutsuji-trackcomputer/{:s} python-requests/{:s}'.format(__version__, requests.__version__)},\
-                                                                                                timeout=(10.0,10.0)).content)).resize((256, 256))
+                        self.img_cache[url_toget] = Image.open(io.BytesIO(requests.get(url_toget, timeout=(10.0,10.0)).content))
                         message = ''
                     else:
                         message = 'cached'
                     result.paste(self.img_cache[url_toget], (256*i, 256*j))
                 except Exception as e:
-                    message = 'ERROR {:s}'.format(str(e)) #e
+                    message = 'ERROR' #e
 
                 print('{:d}/{:d}'.format(counts+1,x_num*y_num),url_toget,message)
                 counts +=1
